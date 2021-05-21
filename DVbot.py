@@ -10,6 +10,7 @@ from . import table
 
 _color = discord.Color
 DIE_EMOJI = "🎲"
+TRASH_EMOJI = "🚮"
 DV_COLORS = (
     _color.red(),
     _color.orange(),
@@ -41,7 +42,7 @@ class DVbot(discord.Client):
 
         self.my_logger = logging.getLogger(self.__class__.__name__)
         self.last_message = None
-        self.reactions = [DIE_EMOJI]
+        self.reactions = [DIE_EMOJI, TRASH_EMOJI]
 
     def log(self, msg):
         self.my_logger.info(msg)
@@ -130,3 +131,5 @@ class DVbot(discord.Client):
             else:
                 embed = self.make_check(check)
                 await message.edit(embed=embed)
+        elif reaction.emoji == TRASH_EMOJI:
+            await message.delete()
