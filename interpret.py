@@ -74,7 +74,7 @@ class interpret:
 
 class check(interpret):
     """interpreted check message"""
-    _rx = re.compile(r".*\bcheck([ \-+]*\d+[ \-+\d]*).*")
+    _rx = re.compile(r".*\b[Cc]heck([ \-+]*\d+[ \-+\d]*).*")
     _die = "d10"
 
     def __init__(self, message):
@@ -89,7 +89,7 @@ class check(interpret):
 
 class damage(interpret):
     """interpreted damage message"""
-    _rx = re.compile(r".*\bdamage ?([1-8])([ \-+\d]*).*")
+    _rx = re.compile(r".*\b[Dd]amage ?([1-8])([ \-+\d]*).*")
     _die = "d6"
 
     def __init__(self, message):
