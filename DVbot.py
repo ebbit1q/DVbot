@@ -29,7 +29,7 @@ def _index_of_dv(amount):
         if amount <= value:
             return index
     else:
-        return index + 1
+        return index + 1  # this is len(table.DV)
 
 
 class DVbot(discord.Client):

@@ -6,6 +6,16 @@ class MatchFail(Exception):
     """Exception for when the message does not match"""
 
 
+class _int(int):
+    _lol = {69: "69 nice", 420: "420 blaze it", 666: "[censored]"}
+
+    def __repr__(self):
+        try:
+            return self._lol[self]
+        except KeyError:
+            return int.__repr__(self)
+
+
 class interpret:
     """base class for interpreted messages"""
 
@@ -27,7 +37,7 @@ class interpret:
         if self.min_value is not None and total < self.min_value:
             return self.min_value
         else:
-            return total
+            return _int(total)
 
     @property
     def text(self):
@@ -48,7 +58,7 @@ class interpret:
             elif text:
                 append(f"+ {value}")
             else:
-                append(f"{value}")
+                append(f"{_int(value)}")
 
         return " ".join(text)
 
