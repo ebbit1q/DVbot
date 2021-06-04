@@ -8,6 +8,7 @@ class MatchFail(Exception):
 
 class interpret:
     """base class for interpreted messages"""
+
     _value_rx = re.compile(r"[ \-+]+[\d]+")
 
     def __init__(self):
@@ -17,11 +18,16 @@ class interpret:
         self.roll = []
         self.roll_total = 0
         self.values = []
+        self.min_value = None
 
     @property
     def total(self):
         """total is the sum of all rolls and values"""
-        return sum(self.values, self.roll_total)
+        total = sum(self.values, self.roll_total)
+        if self.min_value is not None and total < self.min_value:
+            return self.min_value
+        else:
+            return total
 
     @property
     def text(self):
@@ -61,7 +67,10 @@ class interpret:
         """
         self.values.clear()
         for value in self._value_rx.finditer(string):
-            text = value.group(0).replace("+", "").replace(" ", "").replace("--", "")
+            text = value.group(0)
+            text = text.replace("+", "")
+            text = text.replace(" ", "")
+            text = text.replace("--", "")
             num = int(text)
             if num:
                 self.values.append(num)
@@ -74,6 +83,7 @@ class interpret:
 
 class check(interpret):
     """interpreted check message"""
+
     _rx = re.compile(r".*\b[Cc]heck([ \-+]*\d+[ \-+\d]*).*")
     _die = "d10"
 
@@ -89,11 +99,13 @@ class check(interpret):
 
 class damage(interpret):
     """interpreted damage message"""
+
     _rx = re.compile(r".*\b[Dd]amage ?([1-8])([ \-+\d]*).*")
     _die = "d6"
 
     def __init__(self, message):
         self._setup()
+        self.min_value = 0
         match = self._rx.fullmatch(message)
         if not match:
             raise MatchFail("message does not match")
