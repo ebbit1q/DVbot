@@ -63,7 +63,8 @@ class interpret:
         for value in self._value_rx.finditer(string):
             text = value.group(0).replace("+", "").replace(" ", "").replace("--", "")
             num = int(text)
-            self.values.append(num)
+            if num:
+                self.values.append(num)
 
     def __repr__(self):
         text = f"<{self.__class__.__name__} total={self.total} "
