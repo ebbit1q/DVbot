@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import re
 
 import discord
 
@@ -9,6 +8,7 @@ from . import roll
 from . import table
 
 _color = discord.Color
+DAMAGE_CURVE = 3
 DIE_EMOJI = "🎲"
 TRASH_EMOJI = "🚮"
 DV_COLORS = (
@@ -21,7 +21,6 @@ DV_COLORS = (
     _color.purple(),
     _color.magenta(),
 )
-DAMAGE_COLOR = _color.dark_gray()
 
 
 def _index_of_dv(amount):
@@ -32,11 +31,26 @@ def _index_of_dv(amount):
         return index + 1  # this is len(table.DV)
 
 
+class _damage_color(_color):
+    _steepness = 1 / DAMAGE_CURVE  # higher values are more linear
+    _max_amount = 50  # expected highest value
+    _max_grade = 0xFF  # one byte
+    # look for correction value that matches steepness
+    _correction = _max_grade / _max_amount ** _steepness
+
+    def __init__(self, amount):
+        amount = max(amount, 0)
+        grade = round(amount ** self._steepness * self._correction)
+        color = min(grade << 16, 0xFF0000)  # shift to red
+        super().__init__(color + 0x3333)  # a little gray
+
+
 class DVbot(discord.Client):
     """DVbot
 
     a discord bot to roll d10s with
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -67,10 +81,11 @@ class DVbot(discord.Client):
         is_crit = roll.sorted_is_critical(result)
         damage.set_roll(result)
         crit = " critical injury!" if is_crit else ""
-        self.log(f"rolled damage {damage.text}{crit}")
+        color = _damage_color(damage.total)
+        self.log(f"rolled damage {damage.text}{crit} {color}")
         embed = discord.Embed(title=damage.total)
         embed.description = damage.text + crit
-        embed.color = DAMAGE_COLOR
+        embed.color = color
         return embed
 
     async def on_ready(self):
@@ -113,7 +128,10 @@ class DVbot(discord.Client):
         if message is None:
             return
 
-        cors = [message.remove_reaction(emoji, self.user) for emoji in self.reactions]
+        cors = [
+            message.remove_reaction(emoji, self.user)
+            for emoji in self.reactions
+        ]
         await asyncio.gather(*cors)
 
     async def on_reaction_add(self, reaction, user):
