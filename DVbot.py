@@ -62,6 +62,8 @@ class DVbot(discord.Client):
         self.my_logger.info(msg)
 
     def make_check(self, check):
+        check.set_roll([roll.MAX_D10])
+        max_result = check.total
         result = roll.check()
         check.set_roll(result)
         index = _index_of_dv(check.total)
@@ -70,20 +72,26 @@ class DVbot(discord.Client):
             name, *_ = table.DV[index - 1]
             status = f" {name}!"
 
-        self.log(f"rolled check {check.text}{status}")
-        embed = discord.Embed(title=check.total)
+        total = check.total
+        self.log(f"rolled check {total}/{max_result} {check.text}{status}")
+        embed = discord.Embed(title=total)
         embed.description = check.text
         embed.color = DV_COLORS[index]
         return embed
 
     def make_damage(self, damage):
+        damage.set_roll([roll.MAX_D6 * damage.amount])
+        max_result = damage.total
         result = roll.damage(damage.amount)
         is_crit = roll.sorted_is_critical(result)
         damage.set_roll(result)
         crit = " critical injury!" if is_crit else ""
-        color = _damage_color(damage.total)
-        self.log(f"rolled damage {damage.text}{crit} {color}")
-        embed = discord.Embed(title=damage.total)
+        total = damage.total
+        color = _damage_color(total)
+        self.log(
+            f"rolled damage {total}/{max_result} {damage.text}{crit} {color}"
+        )
+        embed = discord.Embed(title=total)
         embed.description = damage.text + crit
         embed.color = color
         return embed
