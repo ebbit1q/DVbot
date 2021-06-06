@@ -110,7 +110,7 @@ class check(interpret):
 class damage(interpret):
     """interpreted damage message"""
 
-    _rx = re.compile(r".*\b[Dd]amage ?([1-8])([ \-+\d]*).*")
+    _rx = re.compile(r".*\b[Dd]amage ?([1-8])(?:d6)?([ \-+\d]*).*")
     _die = "d6"
 
     def __init__(self, message):
