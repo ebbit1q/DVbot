@@ -109,3 +109,5 @@ class DVbot(discord.Client):
                 await message.sent.edit(embed=message.embed)
         elif reaction.emoji == TRASH_EMOJI:
             await self._del_last_message(message)
+        elif reaction.emoji == PATIENCE_EMOJI:
+            await message.sent.edit(content=":upside_down:")
