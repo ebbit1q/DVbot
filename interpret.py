@@ -94,29 +94,30 @@ class interpret:
 class check(interpret):
     """interpreted check message"""
 
-    _rx = re.compile(r".*\b[Cc]heck([ \-+]*\d+[ \-+\d]*).*")
+    _rx = re.compile(r"\b[Cc]heck([\s\-+]*\d+[\s\-+\d]*)\b")
     _die = "d10"
 
     def __init__(self, message):
         self._setup()
-        match = self._rx.fullmatch(message)
+        match = self._rx.search(message)
         if not match:
             raise MatchFail("message does not match")
 
         value_group = match.group(1)
         self.set_values(value_group)
+        self.match_end = match.end()
 
 
 class damage(interpret):
     """interpreted damage message"""
 
-    _rx = re.compile(r".*\b[Dd]amage ?([1-8])(?:d6)?([ \-+\d]*).*")
+    _rx = re.compile(r"\b[Dd]amage\s*([1-8])(?:d6)?([\s\-+\d]*)\b")
     _die = "d6"
 
     def __init__(self, message):
         self._setup()
         self.min_value = 0
-        match = self._rx.fullmatch(message)
+        match = self._rx.search(message)
         if not match:
             raise MatchFail("message does not match")
 
@@ -124,3 +125,4 @@ class damage(interpret):
         self.amount = int(amount_group)
         value_group = match.group(2)
         self.set_values(value_group)
+        self.match_end = match.end()

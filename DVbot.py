@@ -3,46 +3,11 @@ import logging
 
 import discord
 
-from . import interpret
-from . import roll
-from . import table
+from . import reply
 
-_color = discord.Color
-DAMAGE_CURVE = 3
 DIE_EMOJI = "🎲"
 TRASH_EMOJI = "🚮"
-DV_COLORS = (
-    _color.red(),
-    _color.orange(),
-    _color.gold(),
-    _color.green(),
-    _color.teal(),
-    _color.blue(),
-    _color.purple(),
-    _color.magenta(),
-)
-
-
-def _index_of_dv(amount):
-    for index, (name, description, value) in enumerate(table.DV):
-        if amount <= value:
-            return index
-    else:
-        return index + 1  # this is len(table.DV)
-
-
-class _damage_color(_color):
-    _steepness = 1 / DAMAGE_CURVE  # higher values are more linear
-    _max_amount = 50  # expected highest value
-    _max_grade = 0xFF  # one byte
-    # look for correction value that matches steepness
-    _correction = _max_grade / _max_amount ** _steepness
-
-    def __init__(self, amount):
-        amount = max(amount, 0)
-        grade = round(amount ** self._steepness * self._correction)
-        color = min(grade << 16, 0xFF0000)  # shift to red
-        super().__init__(color + 0x3333)  # a little gray
+PATIENCE_EMOJI = "🕰️"
 
 
 class DVbot(discord.Client):
@@ -55,107 +20,92 @@ class DVbot(discord.Client):
         super().__init__(*args, **kwargs)
 
         self.my_logger = logging.getLogger(self.__class__.__name__)
-        self.last_message = None
+        self.last_messages = {}
         self.reactions = [DIE_EMOJI, TRASH_EMOJI]
 
     def log(self, msg):
         self.my_logger.info(msg)
 
-    def make_check(self, check):
-        check.set_roll([roll.MAX_D10])
-        max_result = check.total
-        result = roll.check()
-        check.set_roll(result)
-        index = _index_of_dv(check.total)
-        status = ""
-        if index:
-            name, *_ = table.DV[index - 1]
-            status = f" {name}!"
-
-        total = check.total
-        self.log(f"rolled check {total}/{max_result} {check.text}{status}")
-        embed = discord.Embed(title=total)
-        embed.description = check.text
-        embed.color = DV_COLORS[index]
-        return embed
-
-    def make_damage(self, damage):
-        damage.set_roll([roll.MAX_D6 * damage.amount])
-        max_result = damage.total
-        result = roll.damage(damage.amount)
-        is_crit = roll.sorted_is_critical(result)
-        damage.set_roll(result)
-        crit = " critical injury!" if is_crit else ""
-        total = damage.total
-        color = _damage_color(total)
-        self.log(
-            f"rolled damage {total}/{max_result} {damage.text}{crit} {color}"
-        )
-        embed = discord.Embed(title=total)
-        embed.description = damage.text + crit
-        embed.color = color
-        return embed
-
     async def on_ready(self):
-        self.log(f"{self.user} has logged in")
+        self.log(f"{self.user} has logged in to {len(self.guilds)} guilds")
 
     async def on_message(self, message):
-        if message.author == self.user:
+        user = message.author
+        if user == self.user:
             return
 
-        content = message.content
         try:
-            check = interpret.check(content)
-        except interpret.MatchFail:
-            pass
+            got = reply.reply(self.log, message)
+        except reply.MatchFail:
+            return
+
+        try:
+            last_message = self.last_messages[user]
+        except KeyError:
+            last_message = None
         else:
-            embed = self.make_check(check)
-            self.last_source_id = message.id
-            self.last_message, _ = await asyncio.gather(
-                self._send_embed(message.channel, embed),
-                self._remove_last_emojis(self.last_message),
+            if last_message.sent is None:
+                # we are still processing this user's last message
+                await message.add_reaction(PATIENCE_EMOJI)
+                return
+
+        # it's possible for a race condition to occur here where the previous
+        # reacts on a message are not removed
+        # this is rare however and not worth proofing for, considering the
+        # nonfunctional reacts are only visual anyway
+        self.last_messages[user] = got
+        got.roll()
+        if last_message is None:
+            await self._send_reply(got)
+        else:
+            await asyncio.gather(
+                self._send_reply(got),
+                self._remove_last_emojis(last_message),
             )
-            return
 
-        try:
-            damage = interpret.damage(content)
-        except interpret.MatchFail:
-            pass
-        else:
-            embed = self.make_damage(damage)
-            await message.channel.send(embed=embed)
-            return
-
-    async def _send_embed(self, channel, embed):
-        message = await channel.send(embed=embed)
+    async def _send_reply(self, reply_):
+        channel = reply_.source.channel
+        message = await channel.send(embed=reply_.embed)
         cors = [message.add_reaction(emoji) for emoji in self.reactions]
         await asyncio.gather(*cors)
-        return message
+        reply_.sent = message
 
     async def _remove_last_emojis(self, message):
-        if message is None:
-            return
-
         cors = [
-            message.remove_reaction(emoji, self.user)
+            message.sent.remove_reaction(emoji, self.user)
             for emoji in self.reactions
         ]
-        await asyncio.gather(*cors)
+        try:
+            await asyncio.gather(*cors)
+        except discord.NotFound:
+            pass  # do not remove from last_messages, message will be replaced
+
+    async def _del_last_message(self, message):
+        del self.last_messages[message.user]
+        try:
+            await message.sent.delete()
+        except discord.NotFound:
+            pass
 
     async def on_reaction_add(self, reaction, user):
-        message = reaction.message
-        if user == self.user or message != self.last_message:
+        if user == self.user or reaction.message.author != self.user:
+            return
+
+        try:
+            message = self.last_messages[user]
+        except KeyError:
+            return
+
+        if message.sent != reaction.message or message.user != user:
             return
 
         if reaction.emoji == DIE_EMOJI:
-            channel = self.last_message.channel
             try:
-                source = await channel.fetch_message(self.last_source_id)
-                check = interpret.check(source.content)
-            except (discord.NotFound, interpret.MatchFail):
-                await message.delete()
+                message.reinterpret(message.source.content)
+            except reply.MatchFail:
+                self._del_last_message(message)
             else:
-                embed = self.make_check(check)
-                await message.edit(embed=embed)
+                message.roll()
+                await message.sent.edit(embed=message.embed)
         elif reaction.emoji == TRASH_EMOJI:
-            await message.delete()
+            await self._del_last_message(message)
