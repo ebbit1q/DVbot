@@ -28,6 +28,7 @@ class interpret:
         self.roll = []
         self.roll_total = 0
         self.values = []
+        self.multiple = 1
         self.min_value = None
 
     @property
@@ -76,6 +77,9 @@ class interpret:
         string: str to be interpreted
         """
         self.values.clear()
+        if not string:
+            return
+
         for value in self._value_rx.finditer(string):
             text = value.group(0)
             text = text.replace("+", "")
@@ -94,7 +98,9 @@ class interpret:
 class check(interpret):
     """interpreted check message"""
 
-    _rx = re.compile(r"\b[Cc]heck([\s\-+]*\d+[\s\-+\d]*)\b")
+    _rx = re.compile(
+        r"\b[Cc]heck([\s\-+]*\d+(?:[\s\-+\d]*\d)?)(?:\s*x(\d))?\b"
+    )
     _die = "d10"
 
     def __init__(self, message):
@@ -105,13 +111,19 @@ class check(interpret):
 
         value_group = match.group(1)
         self.set_values(value_group)
+        multiple_group = match.group(2)
+        if multiple_group:
+            self.multiple = int(multiple_group)
+
         self.match_end = match.end()
 
 
 class damage(interpret):
     """interpreted damage message"""
 
-    _rx = re.compile(r"\b[Dd]amage\s*([1-8])(?:d6)?([\s\-+\d]*)\b")
+    _rx = re.compile(
+        r"\b[Dd]amage\s*([1-8])(?:d6)?([\s\-+\d]*\d)?(?:\s*x(\d))?\b"
+    )
     _die = "d6"
 
     def __init__(self, message):
@@ -125,4 +137,8 @@ class damage(interpret):
         self.amount = int(amount_group)
         value_group = match.group(2)
         self.set_values(value_group)
+        multiple_group = match.group(3)
+        if multiple_group:
+            self.multiple = int(multiple_group)
+
         self.match_end = match.end()

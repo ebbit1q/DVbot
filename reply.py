@@ -91,7 +91,8 @@ class reply:
 
                 end += got.match_end
                 content = message[end:]
-                self.fun_to_end[end] = fun, got
+                if got.multiple != 0:
+                    self.fun_to_end[end] = fun, got
 
         if not self.fun_to_end:
             raise MatchFail("reply does not match")
@@ -100,8 +101,9 @@ class reply:
         """roll the previously interpreted message"""
         for end in sorted(self.fun_to_end):
             fun, got = self.fun_to_end[end]
-            fun(self, got)
-            self.set_color = True
+            for _ in range(got.multiple):
+                fun(self, got)
+                self.set_color = True
 
     @_add_interpret(interpret.check)
     def make_check(self, check):
